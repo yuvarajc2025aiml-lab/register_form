@@ -166,6 +166,16 @@
             box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
         }
         
+        /* Date input styling */
+        .input-field[type="date"] {
+            color-scheme: dark;
+        }
+        
+        .input-field[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+        
         /* Error message styling */
         .error-message {
             color: #fca5a5;
@@ -368,22 +378,6 @@
                 <p class="text-white/60 text-xs mt-1">Must contain: 8+ chars, 1 number, 1 special character</p>
             </div>
             
-            <!-- Confirm Password Field -->
-            <div>
-                <label for="confirmPassword" class="block text-white text-sm font-semibold mb-2">
-                    Confirm Password <span class="text-red-400">*</span>
-                </label>
-                <input 
-                    type="password" 
-                    id="confirmPassword" 
-                    name="confirmPassword"
-                    class="input-field w-full px-4 py-3 rounded-lg text-white placeholder-white/50 focus:outline-none"
-                    placeholder="Confirm your password"
-                    autocomplete="new-password"
-                >
-                <span class="error-message" id="confirmPassword-error"></span>
-            </div>
-            
             <!-- Phone Number Field -->
             <div>
                 <label for="phone" class="block text-white text-sm font-semibold mb-2">
@@ -401,21 +395,19 @@
                 <span class="error-message" id="phone-error"></span>
             </div>
             
-            <!-- Age Field -->
+            <!-- Date of Birth Field -->
             <div>
-                <label for="age" class="block text-white text-sm font-semibold mb-2">
-                    Age <span class="text-red-400">*</span>
+                <label for="dob" class="block text-white text-sm font-semibold mb-2">
+                    Date of Birth <span class="text-red-400">*</span>
                 </label>
                 <input 
-                    type="number" 
-                    id="age" 
-                    name="age"
+                    type="date" 
+                    id="dob" 
+                    name="dob"
                     class="input-field w-full px-4 py-3 rounded-lg text-white placeholder-white/50 focus:outline-none"
-                    placeholder="Enter your age"
-                    min="13"
-                    max="120"
+                    required
                 >
-                <span class="error-message" id="age-error"></span>
+                <span class="error-message" id="dob-error"></span>
             </div>
             
             <!-- Submit Button -->
@@ -435,10 +427,8 @@
         import { collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         
         // Wait for Firebase to initialize
-        let db;
         const checkFirebase = setInterval(() => {
             if (window.db) {
-                db = window.db;
                 clearInterval(checkFirebase);
             }
         }, 100);
@@ -484,16 +474,6 @@
             return '';
         }
         
-        function validateConfirmPassword(password, confirmPassword) {
-            if (!confirmPassword || confirmPassword.trim() === '') {
-                return 'Please confirm your password';
-            }
-            if (password !== confirmPassword) {
-                return 'Passwords do not match';
-            }
-            return '';
-        }
-        
         function validatePhone(phone) {
             if (!phone || phone.trim() === '') {
                 return 'Phone number is required';
@@ -508,19 +488,21 @@
             return '';
         }
         
-        function validateAge(age) {
-            if (!age || age.trim() === '') {
-                return 'Age is required';
+        function validateDOB(dob) {
+            if (!dob || dob.trim() === '') {
+                return 'Date of birth is required';
             }
-            const ageNum = parseInt(age);
-            if (isNaN(ageNum)) {
-                return 'Age must be a valid number';
+            const birthDate = new Date(dob);
+            const today = new Date();
+            const age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            
+            if (birthDate > today) {
+                return 'Date of birth cannot be in the future';
             }
-            if (ageNum < 13) {
+            
+            if (age < 13 || (age === 13 && monthDiff < 0) || (age === 13 && monthDiff === 0 && today.getDate() < birthDate.getDate())) {
                 return 'You must be at least 13 years old';
-            }
-            if (ageNum > 120) {
-                return 'Please enter a valid age';
             }
             return '';
         }
@@ -550,14 +532,7 @@
         function validateField(fieldId, errorId, validator) {
             const field = document.getElementById(fieldId);
             const value = field.value;
-            let error = '';
-            
-            if (fieldId === 'confirmPassword') {
-                const password = document.getElementById('password').value;
-                error = validator(password, value);
-            } else {
-                error = validator(value);
-            }
+            const error = validator(value);
             
             if (error) {
                 showError(fieldId, errorId, error);
@@ -579,16 +554,6 @@
         
         document.getElementById('password').addEventListener('blur', function() {
             validateField('password', 'password-error', validatePassword);
-            // Also validate confirm password if it has a value
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            if (confirmPassword) {
-                validateField('confirmPassword', 'confirmPassword-error', validateConfirmPassword);
-            }
-        });
-        
-        document.getElementById('confirmPassword').addEventListener('blur', function() {
-            const password = document.getElementById('password').value;
-            validateField('confirmPassword', 'confirmPassword-error', (pwd, confirm) => validateConfirmPassword(pwd, confirm));
         });
         
         document.getElementById('phone').addEventListener('input', function(e) {
@@ -600,8 +565,8 @@
             validateField('phone', 'phone-error', validatePhone);
         });
         
-        document.getElementById('age').addEventListener('blur', function() {
-            validateField('age', 'age-error', validateAge);
+        document.getElementById('dob').addEventListener('change', function() {
+            validateField('dob', 'dob-error', validateDOB);
         });
         
         // Hash password using SHA-256
@@ -634,9 +599,8 @@
             const fullName = document.getElementById('fullName').value.trim();
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
             const phone = document.getElementById('phone').value.replace(/\D/g, '');
-            const age = document.getElementById('age').value;
+            const dob = document.getElementById('dob').value;
             
             // Validate all fields
             let isValid = true;
@@ -653,15 +617,11 @@
                 isValid = false;
             }
             
-            if (!validateField('confirmPassword', 'confirmPassword-error', (pwd, confirm) => validateConfirmPassword(pwd, confirm))) {
-                isValid = false;
-            }
-            
             if (!validateField('phone', 'phone-error', validatePhone)) {
                 isValid = false;
             }
             
-            if (!validateField('age', 'age-error', validateAge)) {
+            if (!validateField('dob', 'dob-error', validateDOB)) {
                 isValid = false;
             }
             
@@ -676,7 +636,7 @@
             }
             
             // Wait for Firebase to be ready
-            if (!db) {
+            if (!window.db) {
                 alert('Firebase is not initialized. Please check your Firebase configuration.');
                 return;
             }
@@ -693,12 +653,12 @@
                     name: fullName,
                     email: email,
                     phone: phone,
-                    age: parseInt(age),
+                    dob: dob,
                     timestamp: serverTimestamp()
                 };
                 
                 // Add document to Firestore collection "users"
-                await addDoc(collection(db, 'users'), userData);
+                await addDoc(collection(window.db, 'users'), userData);
                 
                 // Hide form and show success message
                 document.getElementById('registrationForm').style.display = 'none';
